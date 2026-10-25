@@ -1,0 +1,506 @@
+{
+  "info": {
+    "_postman_id": "ea880aaa-4913-403a-aa85-44f165f211cd",
+    "name": "Restful Booker API — QA Test Suite",
+    "description": "Компактный набор позитивных и негативных проверок для Restful Booker API. Перед запуском выберите окружение Restful Booker. Важно: тестовый стенд периодически сбрасывает данные; запускайте зависимые запросы подряд. Два негативных сценария отмечены как известные дефекты BR-01 и BR-02 и ожидаемо падают на текущей реализации.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "AUTH-01 — Valid credentials",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text",
+            "disabled": false
+          },
+          {
+            "key": "Accept",
+            "value": "application/json",
+            "type": "text",
+            "disabled": false
+          }
+        ],
+        "url": "{{baseUrl}}/auth",
+        "description": "Позитивная авторизация. Сохраняет token в активное окружение.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"password123\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Статус ответа — 200\", function () { pm.response.to.have.status(200); });",
+              "const data = pm.response.json();",
+              "pm.test(\"Токен присутствует и не пустой\", function () { pm.expect(data.token).to.be.a(\"string\").and.not.empty; });",
+              "if (data.token) { pm.environment.set(\"token\", data.token); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "AUTH-02 — Invalid password",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text",
+            "disabled": false
+          },
+          {
+            "key": "Accept",
+            "value": "application/json",
+            "type": "text",
+            "disabled": false
+          }
+        ],
+        "url": "{{baseUrl}}/auth",
+        "description": "Неверный пароль должен приводить к отказу; данный стенд отвечает HTTP 200 и reason=Bad credentials.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"wrongpassword\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const data = pm.response.json();",
+              "pm.test(\"API отклоняет неверные учетные данные\", function () { pm.expect(data).to.have.property(\"reason\", \"Bad credentials\"); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "BOOKING-01 — Valid booking",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text",
+            "disabled": false
+          },
+          {
+            "key": "Accept",
+            "value": "application/json",
+            "type": "text",
+            "disabled": false
+          }
+        ],
+        "url": "{{baseUrl}}/booking",
+        "description": "Создаёт актуальную запись и обновляет bookingId. Выполнять до запросов по ID.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"firstname\": \"ArslanQA\",\n  \"lastname\": \"Test\",\n  \"totalprice\": 150,\n  \"depositpaid\": true,\n  \"bookingdates\": {\n    \"checkin\": \"2027-03-10\",\n    \"checkout\": \"2027-03-15\"\n  },\n  \"additionalneeds\": \"Breakfast\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Статус ответа — 200\", function () { pm.response.to.have.status(200); });",
+              "const data = pm.response.json();",
+              "const expected = JSON.parse(pm.request.body.raw);",
+              "pm.test(\"ID бронирования существует и является числом\", function () { pm.expect(data.bookingid).to.be.a(\"number\"); });",
+              "pm.test(\"Данные бронирования соответствуют запросу\", function () { pm.expect(data.booking).to.deep.include(expected); });",
+              "if (typeof data.bookingid === \"number\") { pm.environment.set(\"bookingId\", String(data.bookingid)); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "BOOKING-04 — Filter by name",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/booking?firstname=ArslanQA&lastname=Test",
+        "description": "Поиск по firstname и lastname для записи, созданной в BOOKING-01."
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Статус ответа — 200\", function () { pm.response.to.have.status(200); });",
+              "const data = pm.response.json();",
+              "pm.test(\"Ответ содержит список бронирований\", function () { pm.expect(data).to.be.an(\"array\"); });",
+              "pm.test(\"Найдено актуальное бронирование\", function () { const id = Number(pm.environment.get(\"bookingId\")); pm.expect(data.some(item => item.bookingid === id)).to.be.true; });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "BOOKING-05 — Get booking by ID",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/booking/{{bookingId}}",
+        "description": "Выполнять после BOOKING-01 и до PUT/PATCH."
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Статус ответа — 200\", function () { pm.response.to.have.status(200); });",
+              "const data = pm.response.json();",
+              "pm.test(\"Имя и фамилия соответствуют созданной записи\", function () { pm.expect(data.firstname).to.eql(\"ArslanQA\"); pm.expect(data.lastname).to.eql(\"Test\"); });",
+              "pm.test(\"Цена и даты соответствуют созданной записи\", function () { pm.expect(data.totalprice).to.eql(150); pm.expect(data.bookingdates.checkin).to.eql(\"2027-03-10\"); pm.expect(data.bookingdates.checkout).to.eql(\"2027-03-15\"); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "BOOKING-06 — Filter by dates",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/booking?checkin=2027-03-09&checkout=2027-03-16",
+        "description": "Диапазон включает тестовую запись с checkin=2027-03-10 и checkout=2027-03-15."
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Статус ответа — 200\", function () { pm.response.to.have.status(200); });",
+              "const data = pm.response.json();",
+              "pm.test(\"Ответ содержит массив ID\", function () { pm.expect(data).to.be.an(\"array\"); });",
+              "pm.test(\"Результат содержит созданное бронирование\", function () { const id = Number(pm.environment.get(\"bookingId\")); pm.expect(data.some(item => item.bookingid === id)).to.be.true; });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "BOOKING-08 — Update booking (PUT)",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Cookie",
+            "value": "token={{token}}",
+            "type": "text",
+            "disabled": false
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text",
+            "disabled": false
+          },
+          {
+            "key": "Accept",
+            "value": "application/json",
+            "type": "text",
+            "disabled": false
+          }
+        ],
+        "url": "{{baseUrl}}/booking/{{bookingId}}",
+        "description": "Полное обновление; сохраняет baseline для последующей проверки PATCH.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"firstname\": \"ArslanQA_Updated\",\n  \"lastname\": \"TestUpdated\",\n  \"totalprice\": 200,\n  \"depositpaid\": false,\n  \"bookingdates\": {\n    \"checkin\": \"2027-03-11\",\n    \"checkout\": \"2027-03-16\"\n  },\n  \"additionalneeds\": \"Lunch\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Статус ответа — 200\", function () { pm.response.to.have.status(200); });",
+              "const data = pm.response.json();",
+              "pm.test(\"Имя и фамилия обновлены\", function () { pm.expect(data.firstname).to.eql(\"ArslanQA_Updated\"); pm.expect(data.lastname).to.eql(\"TestUpdated\"); });",
+              "pm.test(\"Цена и депозит обновлены\", function () { pm.expect(data.totalprice).to.eql(200); pm.expect(data.depositpaid).to.eql(false); });",
+              "pm.test(\"Даты и дополнительные потребности обновлены\", function () { pm.expect(data.bookingdates.checkin).to.eql(\"2027-03-11\"); pm.expect(data.bookingdates.checkout).to.eql(\"2027-03-16\"); pm.expect(data.additionalneeds).to.eql(\"Lunch\"); });",
+              "pm.environment.set(\"beforePatch_lastname\", String(data.lastname));",
+              "pm.environment.set(\"beforePatch_totalprice\", String(data.totalprice));",
+              "pm.environment.set(\"beforePatch_depositpaid\", String(data.depositpaid));",
+              "pm.environment.set(\"beforePatch_checkin\", String(data.bookingdates.checkin));",
+              "pm.environment.set(\"beforePatch_checkout\", String(data.bookingdates.checkout));",
+              "pm.environment.set(\"beforePatch_additionalneeds\", String(data.additionalneeds));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "BOOKING-09 — Partial update (PATCH)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Cookie",
+            "value": "token={{token}}",
+            "type": "text",
+            "disabled": false
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text",
+            "disabled": false
+          },
+          {
+            "key": "Accept",
+            "value": "application/json",
+            "type": "text",
+            "disabled": false
+          }
+        ],
+        "url": "{{baseUrl}}/booking/{{bookingId}}",
+        "description": "Проверяет, что изменяется только firstname. Сравнение с baseline после PUT избегает хрупких ожиданий.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"firstname\": \"ArslanQA_Patched\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Статус ответа — 200\", function () { pm.response.to.have.status(200); });",
+              "const data = pm.response.json();",
+              "pm.test(\"Имя обновлено\", function () { pm.expect(data.firstname).to.eql(\"ArslanQA_Patched\"); });",
+              "pm.test(\"Остальные поля сохранены\", function () { pm.expect(data.lastname).to.eql(pm.environment.get(\"beforePatch_lastname\")); pm.expect(String(data.totalprice)).to.eql(pm.environment.get(\"beforePatch_totalprice\")); pm.expect(String(data.depositpaid)).to.eql(pm.environment.get(\"beforePatch_depositpaid\")); pm.expect(data.bookingdates.checkin).to.eql(pm.environment.get(\"beforePatch_checkin\")); pm.expect(data.bookingdates.checkout).to.eql(pm.environment.get(\"beforePatch_checkout\")); pm.expect(data.additionalneeds).to.eql(pm.environment.get(\"beforePatch_additionalneeds\")); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "BOOKING-10 — Delete booking",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Cookie",
+            "value": "token={{token}}",
+            "type": "text",
+            "disabled": false
+          }
+        ],
+        "url": "{{baseUrl}}/booking/{{bookingId}}",
+        "description": "Удалять только свежую запись из BOOKING-01; сразу запускать BOOKING-11."
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Статус удаления — 201\", function () { pm.response.to.have.status(201); });",
+              "pm.test(\"Тело ответа — Created\", function () { pm.expect(pm.response.text()).to.eql(\"Created\"); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "BOOKING-11 — Verify deleted booking",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/booking/{{bookingId}}",
+        "description": "Запускать немедленно после BOOKING-10. Демонстрационный стенд периодически сбрасывает данные."
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Удалённое бронирование возвращает 404\", function () { pm.response.to.have.status(404); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "PING-01 — Health check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/ping",
+        "description": "Доступность сервиса; наблюдаемое поведение — HTTP 201 и тело Created."
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Статус ответа — 201\", function () { pm.response.to.have.status(201); });",
+              "pm.test(\"Тело ответа — Created\", function () { pm.expect(pm.response.text()).to.eql(\"Created\"); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "BOOKING-02 — Missing firstname (known bug BR-01)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text",
+            "disabled": false
+          },
+          {
+            "key": "Accept",
+            "value": "application/json",
+            "type": "text",
+            "disabled": false
+          }
+        ],
+        "url": "{{baseUrl}}/booking",
+        "description": "Негативный сценарий. На стенде во время прогона возвращался HTTP 500, поэтому тест ожидаемо падает до исправления BR-01.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"lastname\": \"Test\",\n  \"totalprice\": 150,\n  \"depositpaid\": true,\n  \"bookingdates\": {\n    \"checkin\": \"2027-03-10\",\n    \"checkout\": \"2027-03-15\"\n  },\n  \"additionalneeds\": \"Breakfast\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Запрос без firstname отклонён клиентской ошибкой 4xx\", function () { pm.expect(pm.response.code).to.be.within(400, 499); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "BOOKING-03 — Invalid totalprice (known bug BR-02)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text",
+            "disabled": false
+          },
+          {
+            "key": "Accept",
+            "value": "application/json",
+            "type": "text",
+            "disabled": false
+          }
+        ],
+        "url": "{{baseUrl}}/booking",
+        "description": "Негативный сценарий. На стенде во время прогона ответ был HTTP 200 и booking.totalprice=null, поэтому тест ожидаемо падает до исправления BR-02.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"firstname\": \"ArslanQA_InvalidPrice\",\n  \"lastname\": \"Test\",\n  \"totalprice\": \"abc\",\n  \"depositpaid\": true,\n  \"bookingdates\": {\n    \"checkin\": \"2027-03-10\",\n    \"checkout\": \"2027-03-15\"\n  },\n  \"additionalneeds\": \"Breakfast\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Некорректный totalprice отклонён клиентской ошибкой 4xx\", function () { pm.expect(pm.response.code).to.be.within(400, 499); });"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://restful-booker.herokuapp.com",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "bookingId",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}
